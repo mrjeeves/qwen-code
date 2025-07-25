@@ -196,6 +196,10 @@ export class Turn {
     req: PartListUnion,
     signal: AbortSignal,
   ): AsyncGenerator<ServerGeminiStreamEvent> {
+    // PROMPT ANALYSIS: Log turn execution start
+    logPromptAnalysis('Turn.run started with request:', req);
+    logPromptAnalysis(`Prompt ID: ${this.prompt_id}`);
+    
     try {
       const responseStream = await this.chat.sendMessageStream(
         {
@@ -249,9 +253,14 @@ export class Turn {
 
         // Handle function calls (requesting tool execution)
         const functionCalls = resp.functionCalls ?? [];
+        if (functionCalls.length > 0) {
+          logPromptAnalysis('Function calls detected:', functionCalls);
+        }
         for (const fnCall of functionCalls) {
+          logPromptAnalysis(`Processing function call: ${fnCall.name}`, fnCall.args);
           const event = this.handlePendingFunctionCall(fnCall);
           if (event) {
+            logPromptAnalysis('Tool call event yielded:', event);
             yield event;
           }
         }

@@ -289,6 +289,11 @@ export class GeminiChat {
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
 
+    // PROMPT ANALYSIS: Log full prompt context before model call
+    logPromptAnalysis('User content created:', userContent);
+    logPromptAnalysis('Full request contents (curated history + user message):', requestContents);
+    logPromptAnalysis(`Total content parts: ${requestContents.length}`);
+
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
 
     const startTime = Date.now();
