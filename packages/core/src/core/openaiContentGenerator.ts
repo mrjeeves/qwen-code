@@ -795,12 +795,6 @@ export class OpenAIContentGenerator implements ContentGenerator {
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-    // PROMPT ANALYSIS: Log API format conversion start
-    // logPromptAnalysis('Converting to OpenAI format - input request');
-    // logPromptAnalysis(`Model: ${request.model}`);
-    // logPromptAnalysis(`Contents count: ${Array.isArray(request.contents) ? request.contents.length : (request.contents ? 1 : 0)}`);
-    // logPromptAnalysis(`Has system instruction: ${!!request.config?.systemInstruction}`);
-
     // Handle system instruction from config
     if (request.config?.systemInstruction) {
       const systemInstruction = request.config.systemInstruction;

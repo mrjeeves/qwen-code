@@ -252,13 +252,6 @@ export class GeminiClient {
       },
       ...(extraHistory ?? []),
     ];
-    
-    // PROMPT ANALYSIS: Log environment parts and initial history setup
-    // logPromptAnalysis('Environment parts:', envParts);
-    // logPromptAnalysis('Initial history constructed:', history);
-    // logPromptAnalysis(`Tool declarations count: ${toolDeclarations.length}`);
-    // logPromptAnalysis('Tool names:', toolDeclarations.map(t => t.name));
-    
     try {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
