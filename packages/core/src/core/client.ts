@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import {
   EmbedContentParameters,
   GenerateContentConfig,
@@ -41,6 +43,19 @@ import {
 import { ProxyAgent, setGlobalDispatcher } from 'undici';
 import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
 import { LoopDetectionService } from '../services/loopDetectionService.js';
+
+function logPromptAnalysis(message: string, data?: any) {
+  // console.log('logPromptAnalysis', message, data);
+  try {
+    const timestamp = new Date().toISOString();
+    const logPath = path.join(process.cwd(), '.doh', 'logs', 'qwen.log');
+    const logEntry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n\n`;
+    fs.appendFileSync(logPath, logEntry);
+  } catch (error) {
+    // Silent fail to avoid breaking the main functionality
+    console.error('Failed to log prompt analysis:', error);
+  }
+}
 
 function isThinkingSupported(model: string) {
   if (model.startsWith('gemini-2.5')) return true;
@@ -236,9 +251,20 @@ export class GeminiClient {
       },
       ...(extraHistory ?? []),
     ];
+    
+    // PROMPT ANALYSIS: Log environment parts and initial history setup
+    logPromptAnalysis('Environment parts:', envParts);
+    logPromptAnalysis('Initial history constructed:', history);
+    logPromptAnalysis(`Tool declarations count: ${toolDeclarations.length}`);
+    logPromptAnalysis('Tool names:', toolDeclarations.map(t => t.name));
+    
     try {
       const userMemory = this.config.getUserMemory();
       const systemInstruction = getCoreSystemPrompt(userMemory);
+      
+      // PROMPT ANALYSIS: Log system instruction
+      logPromptAnalysis(`System instruction length: ${systemInstruction.length}`);
+      logPromptAnalysis(`System instruction preview: ${systemInstruction.substring(0, 200)}...`);
       const generateContentConfigWithThinking = isThinkingSupported(
         this.config.getModel(),
       )

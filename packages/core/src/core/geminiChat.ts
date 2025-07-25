@@ -7,6 +7,8 @@
 // DISCLAIMER: This is a copied version of https://github.com/googleapis/js-genai/blob/main/src/chats.ts with the intention of working around a key bug
 // where function responses are not treated as "valid" responses: https://b.corp.google.com/issues/420354090
 
+import fs from 'fs';
+import path from 'path';
 import {
   GenerateContentResponse,
   Content,
@@ -35,6 +37,19 @@ import {
   ApiResponseEvent,
 } from '../telemetry/types.js';
 import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
+
+function logPromptAnalysis(message: string, data?: any) {
+  // console.log('logPromptAnalysis', message, data);
+  try {
+    const timestamp = new Date().toISOString();
+    const logPath = path.join(process.cwd(), '.doh', 'logs', 'qwen.log');
+    const logEntry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n\n`;
+    fs.appendFileSync(logPath, logEntry);
+  } catch (error) {
+    // Silent fail to avoid breaking the main functionality
+    console.error('Failed to log prompt analysis:', error);
+  }
+}
 
 /**
  * Returns true if the response is valid, false otherwise.
@@ -273,6 +288,11 @@ export class GeminiChat {
     await this.sendPromise;
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
+
+    // PROMPT ANALYSIS: Log full prompt context before model call
+    logPromptAnalysis('User content created:', userContent);
+    logPromptAnalysis('Full request contents (curated history + user message):', requestContents);
+    logPromptAnalysis(`Total content parts: ${requestContents.length}`);
 
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
 

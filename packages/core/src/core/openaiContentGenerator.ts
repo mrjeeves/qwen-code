@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import {
   CountTokensResponse,
   GenerateContentResponse,
@@ -30,6 +32,19 @@ import { logApiResponse } from '../telemetry/loggers.js';
 import { ApiResponseEvent } from '../telemetry/types.js';
 import { Config } from '../config/config.js';
 import { openaiLogger } from '../utils/openaiLogger.js';
+
+function logPromptAnalysis(message: string, data?: any) {
+  // console.log('logPromptAnalysis', message, data);
+  try {
+    const timestamp = new Date().toISOString();
+    const logPath = path.join(process.cwd(), '.doh', 'logs', 'qwen.log');
+    const logEntry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n\n`;
+    fs.appendFileSync(logPath, logEntry);
+  } catch (error) {
+    // Silent fail to avoid breaking the main functionality
+    console.error('Failed to log prompt analysis:', error);
+  }
+}
 
 // OpenAI API type definitions for logging
 interface OpenAIToolCall {
@@ -750,6 +765,12 @@ export class OpenAIContentGenerator implements ContentGenerator {
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
+    // PROMPT ANALYSIS: Log API format conversion start
+    logPromptAnalysis('Converting to OpenAI format - input request');
+    logPromptAnalysis(`Model: ${request.model}`);
+    logPromptAnalysis(`Contents count: ${Array.isArray(request.contents) ? request.contents.length : (request.contents ? 1 : 0)}`);
+    logPromptAnalysis(`Has system instruction: ${!!request.config?.systemInstruction}`);
+
     // Handle system instruction from config
     if (request.config?.systemInstruction) {
       const systemInstruction = request.config.systemInstruction;
@@ -880,7 +901,13 @@ export class OpenAIContentGenerator implements ContentGenerator {
 
     // Clean up orphaned tool calls and merge consecutive assistant messages
     const cleanedMessages = this.cleanOrphanedToolCalls(messages);
-    return this.mergeConsecutiveAssistantMessages(cleanedMessages);
+    const finalMessages = this.mergeConsecutiveAssistantMessages(cleanedMessages);
+    
+    // PROMPT ANALYSIS: Log final OpenAI message format
+    logPromptAnalysis('Final OpenAI messages array:', finalMessages);
+    logPromptAnalysis(`Total final messages: ${finalMessages.length}`);
+    
+    return finalMessages;
   }
 
   /**

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'fs';
+import path from 'path';
 import {
   PartListUnion,
   GenerateContentResponse,
@@ -37,6 +39,19 @@ export interface ServerTool {
     params: Record<string, unknown>,
     abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails | false>;
+}
+
+function logPromptAnalysis(message: string, data?: any) {
+  // console.log('logPromptAnalysis', message, data);
+  try {
+    const timestamp = new Date().toISOString();
+    const logPath = path.join(process.cwd(), '.doh', 'logs', 'qwen.log');
+    const logEntry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n\n`;
+    fs.appendFileSync(logPath, logEntry);
+  } catch (error) {
+    // Silent fail to avoid breaking the main functionality
+    console.error('Failed to log prompt analysis:', error);
+  }
 }
 
 export enum GeminiEventType {
@@ -168,6 +183,10 @@ export class Turn {
     req: PartListUnion,
     signal: AbortSignal,
   ): AsyncGenerator<ServerGeminiStreamEvent> {
+    // PROMPT ANALYSIS: Log turn execution start
+    logPromptAnalysis('Turn.run started with request:', req);
+    logPromptAnalysis(`Prompt ID: ${this.prompt_id}`);
+    
     try {
       const responseStream = await this.chat.sendMessageStream(
         {
@@ -189,6 +208,9 @@ export class Turn {
 
         const thoughtPart = resp.candidates?.[0]?.content?.parts?.[0];
         if (thoughtPart?.thought) {
+          // PROMPT ANALYSIS: Log thought processing
+          logPromptAnalysis('Thought detected:', thoughtPart);
+          
           // Thought always has a bold "subject" part enclosed in double asterisks
           // (e.g., **Subject**). The rest of the string is considered the description.
           const rawText = thoughtPart.text ?? '';
@@ -201,6 +223,8 @@ export class Turn {
             subject,
             description,
           };
+
+          logPromptAnalysis(`Parsed thought - Subject: ${subject}, Description: ${description}`);
 
           yield {
             type: GeminiEventType.Thought,
@@ -216,9 +240,14 @@ export class Turn {
 
         // Handle function calls (requesting tool execution)
         const functionCalls = resp.functionCalls ?? [];
+        if (functionCalls.length > 0) {
+          logPromptAnalysis('Function calls detected:', functionCalls);
+        }
         for (const fnCall of functionCalls) {
+          logPromptAnalysis(`Processing function call: ${fnCall.name}`, fnCall.args);
           const event = this.handlePendingFunctionCall(fnCall);
           if (event) {
+            logPromptAnalysis('Tool call event yielded:', event);
             yield event;
           }
         }
