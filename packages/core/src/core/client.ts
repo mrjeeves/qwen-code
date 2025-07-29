@@ -265,6 +265,10 @@ export class GeminiClient {
       const systemInstruction = getCoreSystemPrompt(userMemory, {
         systemPromptMappings,
       });
+      
+      // PROMPT ANALYSIS: Log system instruction
+      logPromptAnalysis(`System instruction length: ${systemInstruction.length}`);
+      logPromptAnalysis(`System instruction preview: ${systemInstruction.substring(0, 200)}...`);
       const generateContentConfigWithThinking = isThinkingSupported(
         this.config.getModel(),
       )
