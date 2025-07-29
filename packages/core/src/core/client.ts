@@ -263,12 +263,8 @@ export class GeminiClient {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        // systemPromptMappings,
+        systemPromptMappings,
       });
-      
-      // PROMPT ANALYSIS: Log system instruction
-      // logPromptAnalysis(`System instruction length: ${systemInstruction.length}`);
-      // logPromptAnalysis(`System instruction preview: ${systemInstruction.substring(0, 200)}...`);
       const generateContentConfigWithThinking = isThinkingSupported(
         this.config.getModel(),
       )
@@ -429,7 +425,7 @@ export class GeminiClient {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        // systemPromptMappings,
+        systemPromptMappings,
       });
       const requestConfig = {
         abortSignal,
@@ -548,7 +544,7 @@ export class GeminiClient {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        // systemPromptMappings,
+        systemPromptMappings,
       });
 
       const requestConfig = {
