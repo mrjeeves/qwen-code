@@ -254,21 +254,21 @@ export class GeminiClient {
     ];
     
     // PROMPT ANALYSIS: Log environment parts and initial history setup
-    logPromptAnalysis('Environment parts:', envParts);
-    logPromptAnalysis('Initial history constructed:', history);
-    logPromptAnalysis(`Tool declarations count: ${toolDeclarations.length}`);
-    logPromptAnalysis('Tool names:', toolDeclarations.map(t => t.name));
+    // logPromptAnalysis('Environment parts:', envParts);
+    // logPromptAnalysis('Initial history constructed:', history);
+    // logPromptAnalysis(`Tool declarations count: ${toolDeclarations.length}`);
+    // logPromptAnalysis('Tool names:', toolDeclarations.map(t => t.name));
     
     try {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        systemPromptMappings,
+        // systemPromptMappings,
       });
       
       // PROMPT ANALYSIS: Log system instruction
-      logPromptAnalysis(`System instruction length: ${systemInstruction.length}`);
-      logPromptAnalysis(`System instruction preview: ${systemInstruction.substring(0, 200)}...`);
+      // logPromptAnalysis(`System instruction length: ${systemInstruction.length}`);
+      // logPromptAnalysis(`System instruction preview: ${systemInstruction.substring(0, 200)}...`);
       const generateContentConfigWithThinking = isThinkingSupported(
         this.config.getModel(),
       )
@@ -429,7 +429,7 @@ export class GeminiClient {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        systemPromptMappings,
+        // systemPromptMappings,
       });
       const requestConfig = {
         abortSignal,
@@ -548,7 +548,7 @@ export class GeminiClient {
       const userMemory = this.config.getUserMemory();
       const systemPromptMappings = this.config.getSystemPromptMappings();
       const systemInstruction = getCoreSystemPrompt(userMemory, {
-        systemPromptMappings,
+        // systemPromptMappings,
       });
 
       const requestConfig = {

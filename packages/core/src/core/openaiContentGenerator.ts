@@ -32,6 +32,7 @@ import { logApiResponse } from '../telemetry/loggers.js';
 import { ApiResponseEvent } from '../telemetry/types.js';
 import { Config } from '../config/config.js';
 import { openaiLogger } from '../utils/openaiLogger.js';
+import { reconfigureFinalMessages } from '../refocus/index.js';
 
 function logPromptAnalysis(message: string, data?: any) {
   // console.log('logPromptAnalysis', message, data);
@@ -795,10 +796,10 @@ export class OpenAIContentGenerator implements ContentGenerator {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
     // PROMPT ANALYSIS: Log API format conversion start
-    logPromptAnalysis('Converting to OpenAI format - input request');
-    logPromptAnalysis(`Model: ${request.model}`);
-    logPromptAnalysis(`Contents count: ${Array.isArray(request.contents) ? request.contents.length : (request.contents ? 1 : 0)}`);
-    logPromptAnalysis(`Has system instruction: ${!!request.config?.systemInstruction}`);
+    // logPromptAnalysis('Converting to OpenAI format - input request');
+    // logPromptAnalysis(`Model: ${request.model}`);
+    // logPromptAnalysis(`Contents count: ${Array.isArray(request.contents) ? request.contents.length : (request.contents ? 1 : 0)}`);
+    // logPromptAnalysis(`Has system instruction: ${!!request.config?.systemInstruction}`);
 
     // Handle system instruction from config
     if (request.config?.systemInstruction) {
@@ -930,11 +931,12 @@ export class OpenAIContentGenerator implements ContentGenerator {
 
     // Clean up orphaned tool calls and merge consecutive assistant messages
     const cleanedMessages = this.cleanOrphanedToolCalls(messages);
-    const finalMessages = this.mergeConsecutiveAssistantMessages(cleanedMessages);
+    const mergedMessages = this.mergeConsecutiveAssistantMessages(cleanedMessages);
     
+    // Use refocus module to reconfigure final messages
+    const finalMessages = reconfigureFinalMessages(mergedMessages);
     // PROMPT ANALYSIS: Log final OpenAI message format
-    logPromptAnalysis('Final OpenAI messages array:', finalMessages);
-    logPromptAnalysis(`Total final messages: ${finalMessages.length}`);
+    // logPromptAnalysis('Final OpenAI messages array:', finalMessages);
     
     return finalMessages;
   }

@@ -382,7 +382,7 @@ export async function loadCliConfig(
     model: argv.model!,
     extensionContextFilePaths,
     maxSessionTurns: settings.maxSessionTurns ?? -1,
-    sessionTokenLimit: settings.sessionTokenLimit ?? 32000,
+    sessionTokenLimit: settings.sessionTokenLimit ?? 128000,
     maxFolderItems: settings.maxFolderItems ?? 20,
     listExtensions: argv.listExtensions || false,
     activeExtensions: activeExtensions.map((e) => ({

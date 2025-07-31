@@ -264,7 +264,7 @@ export class Config {
     this.model = params.model;
     this.extensionContextFilePaths = params.extensionContextFilePaths ?? [];
     this.maxSessionTurns = params.maxSessionTurns ?? -1;
-    this.sessionTokenLimit = params.sessionTokenLimit ?? 32000;
+    this.sessionTokenLimit = params.sessionTokenLimit ?? 128000;
     this.maxFolderItems = params.maxFolderItems ?? 20;
     this.listExtensions = params.listExtensions ?? false;
     this._activeExtensions = params.activeExtensions ?? [];
