@@ -256,10 +256,12 @@ function generateVirtualFileSystemContext(vfs: VirtualFileSystem): string {
     return '';
   }
 
-  let context = '\n\n# Current File States\n\n';
+  let context = '\n\n═══ 📁 CURRENT FILE STATES ═══\n\n';
   context += 'The following files have been read or modified during this conversation:\n\n';
 
-  for (const [filepath, lines] of Object.entries(vfs)) {
+  const fileEntries = Object.entries(vfs);
+  for (let i = 0; i < fileEntries.length; i++) {
+    const [filepath, lines] = fileEntries[i];
     context += `## ${filepath}\n`;
     
     const lineCount = Object.keys(lines).length;
@@ -280,6 +282,11 @@ function generateVirtualFileSystemContext(vfs: VirtualFileSystem): string {
       context += '```\n';
       context += range.content.join('\n');
       context += '\n```\n\n';
+    }
+    
+    // Add separator between files (but not after the last one)
+    if (i < fileEntries.length - 1) {
+      context += '--- END OF FILE ---\n\n';
     }
   }
 
@@ -695,7 +702,7 @@ function buildContextStuffedSystemPrompt(
 
   // Add environment context section
   const contextInfo = extractContextInfo(cannedUserContext);
-  systemPrompt += '\n\n# Current Environment\n\n';
+  systemPrompt += '\n\n═══ 🌍 CURRENT ENVIRONMENT ═══\n\n';
   systemPrompt += `- **Date:** ${contextInfo.date}\n`;
   systemPrompt += `- **Operating System:** ${contextInfo.os}\n`;
   systemPrompt += `- **Current Working Directory:** ${contextInfo.cwd}\n`;
@@ -708,9 +715,10 @@ function buildContextStuffedSystemPrompt(
 
   // Add remaining non-file-operation tool calls if any
   if (toolCallPairs.length > 0) {
-    systemPrompt += '\n\n# Other Previous Tool Calls and Results\n\n';
+    systemPrompt += '\n\n═══ 🔧 PREVIOUS TOOL CALLS AND RESULTS ═══\n\n';
     
-    for (const pair of toolCallPairs) {
+    for (let i = 0; i < toolCallPairs.length; i++) {
+      const pair = toolCallPairs[i];
       const functionName = pair.toolCall.function?.name || 'unknown';
       const functionArgs = pair.toolCall.function?.arguments || '{}';
       
@@ -727,6 +735,11 @@ function buildContextStuffedSystemPrompt(
       systemPrompt += `## ${functionName}\n`;
       systemPrompt += `**Arguments:**\n\`\`\`json\n${formattedArgs}\n\`\`\`\n\n`;
       systemPrompt += `**Result:**\n\`\`\`\n${truncateSearchResult(functionName, pair.result)}\n\`\`\`\n\n`;
+      
+      // Add separator between tool calls (but not after the last one)
+      if (i < toolCallPairs.length - 1) {
+        systemPrompt += '--- END OF TOOL CALL ---\n\n';
+      }
     }
   }
 
@@ -910,10 +923,11 @@ function buildNewMessagesArray(deconstructed: DeconstructedMessages, originalRea
         // Keep all other user messages
         newMessages.push(message);
       }
-    } else {
-      // Keep other message types as-is
+    } else if (message.role !== 'system') {
+      // Keep other message types as-is, but skip system messages to avoid duplicates
       newMessages.push(message);
     }
+    // Skip system messages since we already have our system message at the beginning
   }
 
   // 6. Collapse consecutive assistant messages before returning
