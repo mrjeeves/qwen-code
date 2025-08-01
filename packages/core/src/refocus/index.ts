@@ -609,7 +609,15 @@ Programming tasks require understanding existing code, patterns, and structures.
 - **Concise Communication:** Use minimal text output, let tools do the work
 - **Tool-Centric Approach:** Prefer using tools over making assumptions
 - **Absolute Paths:** Always use absolute paths for file operations
-- **Security First:** Never expose secrets or sensitive information`;
+- **Security First:** Never expose secrets or sensitive information
+
+# Important Context Available
+
+**CRITICAL:** The next user messages contain essential context from your previous work:
+1. **Current File States** - Contains the exact content of files you've read or modified during this conversation
+2. **Previous Tool Calls** - Shows the tools you've used and their results (truncated for efficiency)
+
+Use this context to understand what has already been discovered and what files are available to you.`;
 }
 
 /**
@@ -690,13 +698,9 @@ function truncateSearchResult(functionName: string, result: string): string {
 }
 
 /**
- * Build new system prompt with virtual filesystem and environment info at the end
+ * Build clean system prompt with only core content and environment info
  */
-function buildContextStuffedSystemPrompt(
-  toolCallPairs: Array<{ toolCall: OpenAI.Chat.ChatCompletionMessageToolCall; result: string; }>,
-  cannedUserContext: string,
-  virtualFileSystem: VirtualFileSystem
-): string {
+function buildCleanSystemPrompt(cannedUserContext: string): string {
   // Start with cleaned system prompt
   let systemPrompt = createCleanedSystemPrompt();
 
@@ -707,43 +711,62 @@ function buildContextStuffedSystemPrompt(
   systemPrompt += `- **Operating System:** ${contextInfo.os}\n`;
   systemPrompt += `- **Current Working Directory:** ${contextInfo.cwd}\n`;
 
-  // Add virtual filesystem context - this replaces verbose file operation tool calls
-  const vfsContext = generateVirtualFileSystemContext(virtualFileSystem);
-  if (vfsContext) {
-    systemPrompt += vfsContext;
+  return systemPrompt;
+}
+
+/**
+ * Generate tool calls context as user message content
+ */
+function generateToolCallsContext(
+  toolCallPairs: Array<{ toolCall: OpenAI.Chat.ChatCompletionMessageToolCall; result: string; }>
+): string {
+  if (toolCallPairs.length === 0) {
+    return '';
   }
 
-  // Add remaining non-file-operation tool calls if any
-  if (toolCallPairs.length > 0) {
-    systemPrompt += '\n\n═══ 🔧 PREVIOUS TOOL CALLS AND RESULTS ═══\n\n';
+  let toolCallsContent = '═══ 🔧 PREVIOUS TOOL CALLS AND RESULTS ═══\n\n';
+  
+  for (let i = 0; i < toolCallPairs.length; i++) {
+    const pair = toolCallPairs[i];
+    const functionName = pair.toolCall.function?.name || 'unknown';
+    const functionArgs = pair.toolCall.function?.arguments || '{}';
     
-    for (let i = 0; i < toolCallPairs.length; i++) {
-      const pair = toolCallPairs[i];
-      const functionName = pair.toolCall.function?.name || 'unknown';
-      const functionArgs = pair.toolCall.function?.arguments || '{}';
-      
-      // Parse and re-stringify to ensure proper formatting and prevent nested escaping
-      let formattedArgs: string;
-      try {
-        const parsedArgs = JSON.parse(functionArgs);
-        formattedArgs = JSON.stringify(parsedArgs, null, 2);
-      } catch {
-        // If parsing fails, use the original string but avoid double-escaping
-        formattedArgs = functionArgs;
+    // Parse and re-stringify to ensure proper formatting and prevent nested escaping
+    let formattedArgs: string;
+    try {
+      const parsedArgs = JSON.parse(functionArgs);
+      formattedArgs = JSON.stringify(parsedArgs, null, 2);
+    } catch {
+      // If parsing fails, use the original string but avoid double-escaping
+      formattedArgs = functionArgs;
+    }
+    
+    toolCallsContent += `## ${functionName}\n`;
+    toolCallsContent += `**Arguments:**\n\`\`\`json\n${formattedArgs}\n\`\`\`\n\n`;
+    // Truncate result output property to 100 characters for context efficiency
+    let truncatedResult = pair.result;
+    try {
+      const parsed = JSON.parse(pair.result);
+      if (parsed.output && typeof parsed.output === 'string' && parsed.output.length > 100) {
+        parsed.output = parsed.output.substring(0, 100) + '...';
+        truncatedResult = JSON.stringify(parsed);
       }
-      
-      systemPrompt += `## ${functionName}\n`;
-      systemPrompt += `**Arguments:**\n\`\`\`json\n${formattedArgs}\n\`\`\`\n\n`;
-      systemPrompt += `**Result:**\n\`\`\`\n${truncateSearchResult(functionName, pair.result)}\n\`\`\`\n\n`;
-      
-      // Add separator between tool calls (but not after the last one)
-      if (i < toolCallPairs.length - 1) {
-        systemPrompt += '--- END OF TOOL CALL ---\n\n';
-      }
+    } catch {
+      // If not JSON or parsing fails, truncate the entire string as fallback
+      truncatedResult = pair.result.length > 100 
+        ? pair.result.substring(0, 100) + '...'
+        : pair.result;
+    }
+    
+    toolCallsContent += `**Result:**\n\`\`\`\n${truncatedResult}\n\`\`\`\n\n`;
+    
+    // Add separator between tool calls (but not after the last one)
+    if (i < toolCallPairs.length - 1) {
+      toolCallsContent += '--- END OF TOOL CALL ---\n\n';
     }
   }
 
-  return systemPrompt;
+  return toolCallsContent;
 }
 
 /**
@@ -757,7 +780,7 @@ function collapseConsecutiveAssistantMessages(messages: OpenAI.Chat.ChatCompleti
     
     if (currentMessage.role === 'assistant') {
       // Start collecting consecutive assistant messages
-      const consecutiveAssistantContents: string[] = [];
+      let lastAssistantContent: string = '';
       const allToolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
       let j = i;
       
@@ -765,14 +788,11 @@ function collapseConsecutiveAssistantMessages(messages: OpenAI.Chat.ChatCompleti
       while (j < messages.length && messages[j].role === 'assistant') {
         const assistantMessage = messages[j];
         
-        // Collect content if it exists and is meaningful, and not already included
+        // Overwrite content with the latest non-empty content (don't accumulate)
         if (assistantMessage.content && 
             typeof assistantMessage.content === 'string' && 
             assistantMessage.content.trim() !== '') {
-          const trimmedContent = assistantMessage.content.trim();
-          if (!consecutiveAssistantContents.includes(trimmedContent)) {
-            consecutiveAssistantContents.push(trimmedContent);
-          }
+          lastAssistantContent = assistantMessage.content.trim();
         }
         
         // Collect tool calls if they exist
@@ -784,10 +804,10 @@ function collapseConsecutiveAssistantMessages(messages: OpenAI.Chat.ChatCompleti
       }
       
       // Create a single consolidated assistant message
-      if (consecutiveAssistantContents.length > 0 || allToolCalls.length > 0) {
+      if (lastAssistantContent || allToolCalls.length > 0) {
         const consolidatedMessage: OpenAI.Chat.ChatCompletionMessageParam = {
           role: 'assistant',
-          content: consecutiveAssistantContents.join('\n')
+          content: lastAssistantContent
         };
         
         if (allToolCalls.length > 0) {
@@ -814,22 +834,36 @@ function collapseConsecutiveAssistantMessages(messages: OpenAI.Chat.ChatCompleti
 function buildNewMessagesArray(deconstructed: DeconstructedMessages, originalRealConversation: OpenAI.Chat.ChatCompletionMessageParam[]): OpenAI.Chat.ChatCompletionMessageParam[] {
   const newMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-  // 1. New system message with context stuffed in
-  const contextStuffedSystemPrompt = buildContextStuffedSystemPrompt(
-    deconstructed.toolCallPairs,
-    deconstructed.cannedUserContext,
-    deconstructed.virtualFileSystem
-  );
+  // 1. Clean system message with core content and environment info only
+  const cleanSystemPrompt = buildCleanSystemPrompt(deconstructed.cannedUserContext);
   
   newMessages.push({
     role: 'system',
-    content: contextStuffedSystemPrompt
+    content: cleanSystemPrompt
   });
 
-  // 2. Skip canned directory listing and context setup - we want a clean conversation
-  // 3. Skip canned assistant reply - we want a clean conversation
+  // 2. Add VFS context as user message if available
+  const vfsContext = generateVirtualFileSystemContext(deconstructed.virtualFileSystem);
+  if (vfsContext) {
+    newMessages.push({
+      role: 'user',
+      content: vfsContext
+    });
+  }
 
-  // 4. Determine strategy for filtering
+  // 3. Add tool calls context as user message if available
+  const toolCallsContext = generateToolCallsContext(deconstructed.toolCallPairs);
+  if (toolCallsContext) {
+    newMessages.push({
+      role: 'user',
+      content: toolCallsContext
+    });
+  }
+
+  // 4. Skip canned directory listing and context setup - we want a clean conversation
+  // 5. Skip canned assistant reply - we want a clean conversation
+
+  // 6. Determine strategy for filtering
   const strategy = analyzeToolCallStrategy(originalRealConversation);
   
   // Get ALL tool call IDs that were moved to system prompt (not just file operations)
@@ -845,7 +879,7 @@ function buildNewMessagesArray(deconstructed: DeconstructedMessages, originalRea
     movedToSystemPromptToolCallIds.add(fileOpId);
   }
 
-  // 5. Process real conversation with comprehensive cleaning
+  // 7. Process real conversation with comprehensive cleaning
   for (let i = 0; i < deconstructed.realConversation.length; i++) {
     const message = deconstructed.realConversation[i];
     
@@ -930,7 +964,7 @@ function buildNewMessagesArray(deconstructed: DeconstructedMessages, originalRea
     // Skip system messages since we already have our system message at the beginning
   }
 
-  // 6. Collapse consecutive assistant messages before returning
+  // 8. Collapse consecutive assistant messages before returning
   return collapseConsecutiveAssistantMessages(newMessages);
 }
 
